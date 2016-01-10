@@ -10,13 +10,17 @@
 #include <vector>
 
 #include <fstream>
-#include <boost/archive/basic_binary_oarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
+
+#include <boost/archive/binary_oarchive.hpp>
+//#include <boost/archive/text_oarchive.hpp>
+//#include <boost/archive/text_iarchive.hpp>
+
+#include <boost/iostreams/device/back_inserter.hpp>
+#include <boost/iostreams/stream.hpp>
 
 
-#define MAT_LENGTH 10000
-#define MAT_WIDTH 1000
+#define MAT_LENGTH 100
+#define MAT_WIDTH 100
 
 
 class substr {
@@ -126,7 +130,7 @@ int main(int argc, char **argv){
             mat(i,j) = dist(e2);
         }
     }
-
+    rank = 0;
     if (rank == 0){
         for(auto i = 0; i < mat.size1(); i++){
             for(auto j = 0; j < mat.size2(); j++){
@@ -136,13 +140,22 @@ int main(int argc, char **argv){
             }
         }
     }
-    std::ofstream ofs("duppa");
-    boost::archive::text_oarchive oa(ofs);
-    oa << result;
-//    MPI_Send()
+    std::string serial_str;
+    boost::iostreams::back_insert_device<std::string> inserter(serial_str);
+    boost::iostreams::stream<boost::iostreams::back_insert_device<std::string> > s(inserter);
+    boost::archive::binary_oarchive oa(s);
 
-//    std::cout << mat;
-//    std::cout << "\n";
+    oa << result;
+
+    // don't forget to flush the stream to finish writing into the buffer
+    s.flush();
+
+
+
+   //   MPI_Send()
+
+    std::cout << serial_str;
+    std::cout << "\n";
 //    for (const auto i: result){
 //      std::cout << i << '\n';
 //    }
