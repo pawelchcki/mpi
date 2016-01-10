@@ -2,18 +2,38 @@
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/format.hpp>
+#include <boost/serialization/vector.hpp>
+
 
 #include <iostream>
 #include <random>
 #include <vector>
 
+#include <fstream>
+#include <boost/archive/basic_binary_oarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+
+
 #define MAT_LENGTH 10000
 #define MAT_WIDTH 1000
 
+
 class substr {
+    friend class boost::serialization::access;
 
     int sx, sy, x,y;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version)
+    {
+        ar & sx;
+        ar & sy;
+        ar & x;
+        ar & y;
+    }
 public:
+    substr(){}
     substr(int sx, int sy, int x, int y): sx(sx), sy(sy), x(x), y(y){}
     boost::basic_format<char> toString() const {
         return boost::format("[%1%, %2%, %3%, %4% | %5%, %6% ]") % sx % sy % x % y % (x - sx) % (y - sy);
@@ -79,8 +99,10 @@ void handle(boost::numeric::ublas::matrix<char> &mat, std::vector<substr> &resul
     }
 }
 
-int main(/*int argc, char **argv*/)
-{
+#define MSG_COMPUTE 1
+
+
+int main(int argc, char **argv){
     std::random_device rd;
     std::mt19937 e2(rd());
 
@@ -91,17 +113,33 @@ int main(/*int argc, char **argv*/)
 
     std::vector<substr> result;
 
+    MPI::Init(argc,argv);
+    int size,rank;
+
+    size=MPI::COMM_WORLD.Get_size();
+    rank=MPI::COMM_WORLD.Get_rank();
+//    MPI::Comm comm = MPI::COMM_WORLD;
+
+
     for(auto i = 0; i < mat.size1(); i++){
         for(auto j = 0; j < mat.size2(); j++){
             mat(i,j) = dist(e2);
         }
     }
 
-    for(auto i = 0; i < mat.size1(); i++){
-        for(auto j = 0; j < mat.size2(); j++){
-            handle(mat, result, i, j);
+    if (rank == 0){
+        for(auto i = 0; i < mat.size1(); i++){
+            for(auto j = 0; j < mat.size2(); j++){
+                handle(mat, result, i, j);
+//                comm
+//                MPI::COMM_WORLD.Send()
+            }
         }
     }
+    std::ofstream ofs("duppa");
+    boost::archive::text_oarchive oa(ofs);
+    oa << result;
+//    MPI_Send()
 
 //    std::cout << mat;
 //    std::cout << "\n";
