@@ -48,7 +48,7 @@ std::ostream &operator<<(std::ostream &os, substr const &m) {
     return os << m.toString();
 }
 
-bool cool(char x){
+bool isCorrect(char x){
     if (x == '1'){
         return true;
     } else {
@@ -76,13 +76,13 @@ void processResult(std::vector<substr> &result, int sx, int sy, int x, int y){
     }
 }
 
-bool dupa(boost::numeric::ublas::matrix<char> &mat, std::vector<substr> &result, int sx, int sy, int x, int y){
+bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<substr> &result, int sx, int sy, int x, int y){
 //    std::cout << boost::format("--| %1% %2% %3% %4% \n") % sx % sy % x % y ;
     bool finished = false;
     if (isWithinRange(mat, x, y)) {
-        if (cool(mat(x, y))){
+        if (isCorrect(mat(x, y))){
             int next_x = x+1, next_y = y + yVector(sx, sy, x, y);
-            if (dupa(mat, result, sx, sy, next_x, next_y)){
+            if (recurse(mat, result, sx, sy, next_x, next_y)){
                 processResult(result, sx, sy, x, y);
             }
         } else {
@@ -96,15 +96,23 @@ bool dupa(boost::numeric::ublas::matrix<char> &mat, std::vector<substr> &result,
 }
 
 void handle(boost::numeric::ublas::matrix<char> &mat, std::vector<substr> &result, int x, int y){
-    if (isWithinRange(mat, x, y) && cool(mat(x,y))){
-        dupa(mat, result, x, y, x+1, y-1);
-        dupa(mat, result, x, y, x+1, y);
-        dupa(mat, result, x, y, x+1, y+1);
+    if (isWithinRange(mat, x, y) && isCorrect(mat(x,y))){
+        recurse(mat, result, x, y, x+1, y-1);
+        recurse(mat, result, x, y, x+1, y);
+        recurse(mat, result, x, y, x+1, y+1);
     }
 }
 
 #define MSG_COMPUTE 1
 
+int cellRank(int x, int y, int size){
+    return y % (size - 1);
+}
+
+int handles(){
+
+    return 1;
+}
 
 int main(int argc, char **argv){
     std::random_device rd;
@@ -135,8 +143,6 @@ int main(int argc, char **argv){
         for(auto i = 0; i < mat.size1(); i++){
             for(auto j = 0; j < mat.size2(); j++){
                 handle(mat, result, i, j);
-//                comm
-//                MPI::COMM_WORLD.Send()
             }
         }
     }
@@ -150,18 +156,8 @@ int main(int argc, char **argv){
     // don't forget to flush the stream to finish writing into the buffer
     s.flush();
 
-
-
-   //   MPI_Send()
-
-    std::cout << serial_str;
+    std::cout << serial_str.d;
     std::cout << "\n";
-//    for (const auto i: result){
-//      std::cout << i << '\n';
-//    }
-//    std::cout << "\n";
-
-
 
     return 0;
 }
