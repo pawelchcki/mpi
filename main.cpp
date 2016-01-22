@@ -246,16 +246,23 @@ int main(int argc, char **argv){
     int ws = world.size();
     int numCells = ph.numCells();
     assert(ws > 1);
-    std::vector<OpVector> results;
+
     if (world.rank() == 0){
+        std::vector<OpVector> results;
         for (int i =0; i < numCells; i++){
             int target = (i % (ws - 1)) + 1;
             world.send(target, 1, i);
         }
+
         for (int i = 1; i < ws; i++){
             world.send(i, 1, -1);
-        }
 
+            std::vector<OpVector> results_tmp;
+            world.recv(i, 2, results_tmp);
+            results.reserve(results.size() + results_tmp.size());
+            results.insert(results.end(), results_tmp.begin(), results_tmp.end());
+        }
+        std::cout << "num results: " << results.size() << "\n";
     } else {
         std::vector<OpVector> results;
         while (true){
@@ -266,6 +273,9 @@ int main(int argc, char **argv){
             }
             ph.processCell(mat, results, msg);
         }
+        std::cout << "Sending n: " << results.size() << "\n";
+        world.send(0, 2, results);
+
 //        for(int i=0; i< results.size(); i++){
 //            std::cout << results[i] << std::endl;
 //        }
