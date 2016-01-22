@@ -1,4 +1,4 @@
-#include <boost/mpi/environment.hpp>``
+#include <boost/mpi/environment.hpp>
 #include <boost/mpi/communicator.hpp>
 
 #include <boost/numeric/ublas/matrix.hpp>
@@ -22,11 +22,19 @@
 #include <boost/iostreams/stream.hpp>
 #include <cassert>
 
-#define MAT_HEIGHT 5
-#define MAT_WIDTH 5
+#define MAT_HEIGHT 1000
+#define MAT_WIDTH 10000
 
 namespace mpi = boost::mpi;
 namespace ublas = boost::numeric::ublas;
+
+bool isCorrect(char x){
+    if (x == '1'){
+        return true;
+    } else {
+        return false;
+    }
+}
 
 class OpVector{
     friend class boost::serialization::access;
@@ -70,9 +78,22 @@ public:
         return posy + vy;
     }
 
+
+    inline bool isCurrentCorrect(ublas::matrix<char> &mat){
+        return  posx >= 0 &&
+                posy >= 0 &&
+                posx < mat.size1() &&
+                posy < mat.size2() && isCorrect(mat(posx, posy));
+    }
+
+    inline bool isNextCorrect(ublas::matrix<char> &mat){
+        return canAdvance(mat) && isCorrect(mat(nextX(), nextY()));
+    }
+
     void advance() {
         posx += vx;
         posy += vy;
+        length += 1;
     }
 
     boost::basic_format<char> toString() const {
@@ -84,15 +105,6 @@ std::ostream &operator<<(std::ostream &os, OpVector const &m) {
     return os << m.toString();
 }
 
-bool isCorrect(char x){
-    if (x == '1'){
-        return true;
-    } else {
-        return false;
-    }
-}
-
-
 inline void processResult(std::vector<OpVector> &result, OpVector &data){
 
     if (data.length >= 2){
@@ -101,14 +113,13 @@ inline void processResult(std::vector<OpVector> &result, OpVector &data){
 }
 
 bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &result, OpVector &data){
-    while (data.canAdvance(mat)) {
-        if (isCorrect(mat(data.nextX(), data.nextY()))){
-           data.advance();
-        } else {
-           std::cout << data << "\n";
-           break;
-        }
+    if (data.isCurrentCorrect(mat)){
+        return false;
     }
+    while (data.isNextCorrect(mat)) {
+        data.advance();
+    }
+
     if (data.length >= 2){
         result.push_back(data);
     }
@@ -130,6 +141,7 @@ public:
     void processCell(ublas::matrix<char> &mat, std::vector<OpVector> &result, int cellNo) {
         int x = firstXInCell(cellNo);
         int y = firstYInCell(cellNo);
+        std::cout << cellNo << " " << x << " " << y << std::endl;
 
         for(int i=x; i < std::min(x + cellWidth, (int)mat.size1()) ; i++){
             for(int j=y; j < std::min(y + cellHeight, (int)mat.size2()); j++){
@@ -138,6 +150,7 @@ public:
                     OpVector opv2(i, j, i+1, j+1);
                     OpVector opv3(i, j, i,   j+1);
                     OpVector opv4(i, j, i-1, j+1);
+
                     recurse(mat, result, opv1);
                     recurse(mat, result, opv2);
                     recurse(mat, result, opv3);
@@ -229,44 +242,38 @@ int main(int argc, char **argv){
         }
     }
 
-    PositionHelper ph(10, 10, mat);
+    PositionHelper ph(1000, 1000, mat);
     int ws = world.size();
     int numCells = ph.numCells();
-//    assert(ws > 1);
+    assert(ws > 1);
     std::vector<OpVector> results;
     if (world.rank() == 0){
         for (int i =0; i < numCells; i++){
-//            int target = (i % (ws - 1)) + 1;
-//            int target =1;
-//            world.send(target, 1, i);
-            ph.processCell(mat, results, i);
-            std::cout << "aaa " << " " << i << "\n";
+            int target = (i % (ws - 1)) + 1;
+            world.send(target, 1, i);
         }
         for (int i = 1; i < ws; i++){
             world.send(i, 1, -1);
         }
 
     } else {
-        std::cout << "AsfasfAFSAFS\n";
         std::vector<OpVector> results;
         while (true){
             int msg;
             world.recv(0, 1, msg);
-            ph.processCell(mat, results, msg);
-//            std::cout << "dupa " << msg << std::endl;
             if (msg == -1){
                 break;
             }
-
+            ph.processCell(mat, results, msg);
         }
 //        for(int i=0; i< results.size(); i++){
 //            std::cout << results[i] << std::endl;
 //        }
     }
-    std::cout << mat;
-    for(int i=0; i< results.size(); i++){
-        std::cout << results[i] << std::endl;
-    }
+
+//    for(int i=0; i< results.size(); i++){
+//        std::cout << results[i] << std::endl;
+//    }
 
 
 //    std::string serial_str;
