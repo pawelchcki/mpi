@@ -156,7 +156,8 @@ int main(int argc, char **argv){
     // don't forget to flush the stream to finish writing into the buffer
     s.flush();
 
-    std::cout << serial_str.d;
+    std::cout << serial_str
+                 ;
     std::cout << "\n";
 
     return 0;
