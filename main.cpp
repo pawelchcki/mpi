@@ -49,10 +49,6 @@ public:
 
 class OpVector{
     friend class boost::serialization::access;
-    int length;
-    char vx,vy; // vector to move
-    int startx, starty;
-    int posx, posy;
 
     inline void generatevals(){
         length = abs(posx - startx);
@@ -70,6 +66,11 @@ class OpVector{
        ar & posy;
        generatevals();
     }
+public:
+    int length;
+    char vx,vy; // vector to move
+    int startx, starty;
+    int posx, posy;
 
     OpVector(){}
     OpVector(int startx, int starty, int posx, int posy): startx(startx), starty(starty), posx(posx), posy(posy){
@@ -83,6 +84,7 @@ class OpVector{
 std::ostream &operator<<(std::ostream &os, substr const &m) {
     return os << m.toString();
 }
+
 std::ostream &operator<<(std::ostream &os, OpVector const &m) {
     return os << m.toString();
 }
@@ -142,18 +144,51 @@ void handle(boost::numeric::ublas::matrix<char> &mat, std::vector<substr> &resul
     }
 }
 
-#define MSG_COMPUTE 1
+class PositionHelper {
+    int cellWidth = 2;
+    int cellHeight = 2;
+    int width;
+    int cellsInWidth;
+public:
+    PositionHelper(int cellWidth, int cellHeight, int width) : cellWidth(cellWidth), cellHeight(cellHeight), width(width) {
+        cellsInWidth = cellsInWidthCalc();
+    }
 
-int cellRank(int x, int y, int size){
-    return y % (size - 1);
-}
+    inline int cellsInWidthCalc(){
+        int result = width / cellWidth;
+        if (width % cellWidth > 0){
+            result += 1;
+        }
+        return result;
+    }
 
-int handles(){
+    int cellNumber(int x, int y){
+        int cellFromLeft = x / cellWidth;
+        int cellFromTop = y / cellHeight;
+        int rv = cellFromLeft + cellFromTop * cellsInWidth;
+//        std::cout << rv << cellFromLeft << cellFromTop << std::endl;
+        return rv;
+    }
 
-    return 1;
+    int cellRank(int x, int y, int maxRank){
+        return cellNumber(x, y) % maxRank;
+    }
+};
+
+int test() {
+    PositionHelper helper3(2, 2, 3);
+
+    assert(helper3.cellNumber(0, 0) == 0);
+    assert(helper3.cellNumber(1, 0) == 0);
+    assert(helper3.cellNumber(2, 0) == 1);
+    assert(helper3.cellNumber(0, 1) == 0);
+    assert(helper3.cellNumber(0, 2) == 2);
+    assert(helper3.cellNumber(2, 2) == 3);
+
 }
 
 int main(int argc, char **argv){
+    test();
     std::random_device rd;
     std::mt19937 e2(rd());
 
@@ -164,13 +199,12 @@ int main(int argc, char **argv){
 
     std::vector<substr> result;
 
-//    MPI::Init(argc,argv);
+    mpi::environment env;
+    mpi::communicator world;
+    std::cout << "I am process " << world.rank() << " of " << world.size()
+              << "." << std::endl;
+
     int size,rank;
-
-//    size=MPI::COMM_WORLD.Get_size();
-//    rank=MPI::COMM_WORLD.Get_rank();
-//    MPI::Comm comm = MPI::COMM_WORLD;
-
 
     for(auto i = 0; i < mat.size1(); i++){
         for(auto j = 0; j < mat.size2(); j++){
@@ -186,10 +220,6 @@ int main(int argc, char **argv){
         }
     }
 
-    mpi::environment env;
-    mpi::communicator world;
-    std::cout << "I am process " << world.rank() << " of " << world.size()
-              << "." << std::endl;
 
     std::string serial_str;
     boost::iostreams::back_insert_device<std::string> inserter(serial_str);
