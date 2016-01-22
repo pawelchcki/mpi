@@ -21,8 +21,8 @@
 #include <boost/iostreams/stream.hpp>
 #include <cassert>
 
-#define MAT_LENGTH 100
-#define MAT_WIDTH 100
+#define MAT_LENGTH 5
+#define MAT_WIDTH 5
 
 namespace mpi = boost::mpi;
 namespace ublas = boost::numeric::ublas;
@@ -32,6 +32,7 @@ class OpVector{
 
     inline void generatevals(){
         length = abs(posx - startx);
+        if (length == 0) length = abs(posy -starty);
         vx = (posx-startx)/length;
         vy = (posy-startx)/length;
         assert(vx == 0 || vx == 1 || vx == -1);
@@ -100,12 +101,8 @@ inline void processResult(std::vector<OpVector> &result, OpVector &data){
 }
 
 bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &result, OpVector &data){
-    while (data.canAdvance(mat)) {
-        if (isCorrect(mat(data.nextX(), data.nextY()))){
-            data.advance();
-        } else {
-
-        }
+    while (data.canAdvance(mat) && isCorrect(mat(data.nextX(), data.nextY()))) {
+        data.advance();
     }
     if (data.length >= 2){
         result.push_back(data);
@@ -132,6 +129,7 @@ public:
         for(int i=x; i <= (x + cellWidth); i++){
             for(int j=y; j <= (y + cellHeight); j++){
                 if (isCorrect(mat(x,y))){
+                    std::cout <<  i << " " << j << "\n";
                     OpVector opv1(x,y, x+1, y);
                     OpVector opv2(x,y, x+1, y+1);
                     OpVector opv3(x,y, x, y+1);
@@ -216,39 +214,68 @@ int main(int argc, char **argv){
 
     std::vector<OpVector> result;
 
-    mpi::environment env;
+    mpi::environment env(argc, argv);
     mpi::communicator world;
     std::cout << "I am process " << world.rank() << " of " << world.size()
               << "." << std::endl;
-
-    int size,rank;
 
     for(auto i = 0; i < mat.size1(); i++){
         for(auto j = 0; j < mat.size2(); j++){
             mat(i,j) = dist(e2);
         }
     }
-    rank = 0;
-    if (rank == 0){
-        for(auto i = 0; i < mat.size1(); i++){
-            for(auto j = 0; j < mat.size2(); j++){
-//                handle(mat, result, i, j);
-            }
+
+    PositionHelper ph(10, 10, mat);
+    int ws = world.size();
+    int numCells = ph.numCells();
+//    assert(ws > 1);
+    std::vector<OpVector> results;
+    if (world.rank() == 0){
+        for (int i =0; i < numCells; i++){
+//            int target = (i % (ws - 1)) + 1;
+//            int target =1;
+//            world.send(target, 1, i);
+            ph.processCell(mat, results, i);
+            std::cout << "aaa " << " " << i << "\n";
         }
+        for (int i = 1; i < ws; i++){
+            world.send(i, 1, -1);
+        }
+
+    } else {
+        std::cout << "AsfasfAFSAFS\n";
+        std::vector<OpVector> results;
+        while (true){
+            int msg;
+            world.recv(0, 1, msg);
+            ph.processCell(mat, results, msg);
+//            std::cout << "dupa " << msg << std::endl;
+            if (msg == -1){
+                break;
+            }
+
+        }
+//        for(int i=0; i< results.size(); i++){
+//            std::cout << results[i] << std::endl;
+//        }
+    }
+    std::cout << mat;
+    for(int i=0; i< results.size(); i++){
+        std::cout << results[i] << std::endl;
     }
 
 
-    std::string serial_str;
-    boost::iostreams::back_insert_device<std::string> inserter(serial_str);
-    boost::iostreams::stream<boost::iostreams::back_insert_device<std::string> > s(inserter);
-    boost::archive::binary_oarchive oa(s);
+//    std::string serial_str;
+//    boost::iostreams::back_insert_device<std::string> inserter(serial_str);
+//    boost::iostreams::stream<boost::iostreams::back_insert_device<std::string> > s(inserter);
+//    boost::archive::binary_oarchive oa(s);
 
-    oa << result;
+//    oa << result;
 
-    // don't forget to flush the stream to finish writing into the buffer
-    s.flush();
+//    // don't forget to flush the stream to finish writing into the buffer
+//    s.flush();
 
-//    std::cout << serial_str
+////    std::cout << serial_str
 //                 ;
     std::cout << "\n";
 
