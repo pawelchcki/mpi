@@ -1,4 +1,6 @@
-#include <mpi.h>
+#include <boost/mpi/environment.hpp>
+#include <boost/mpi/communicator.hpp>
+
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/format.hpp>
@@ -17,11 +19,12 @@
 
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/stream.hpp>
-
+#include <cassert>
 
 #define MAT_LENGTH 100
 #define MAT_WIDTH 100
 
+namespace mpi = boost::mpi;
 
 class substr {
     friend class boost::serialization::access;
@@ -44,7 +47,43 @@ public:
     }
 };
 
+class OpVector{
+    friend class boost::serialization::access;
+    int length;
+    char vx,vy; // vector to move
+    int startx, starty;
+    int posx, posy;
+
+    inline void generatevals(){
+        length = abs(posx - startx);
+        vx = (posx-startx)/length;
+        vy = (posy-startx)/length;
+        assert(vx == 0 || vx == 1 || vx == -1);
+        assert(vy == 0 || vy == 1 || vy == -1);
+    }
+
+    template<class Archive>  void serialize(Archive & ar, const unsigned int version)
+    {
+       ar & startx;
+       ar & starty;
+       ar & posx;
+       ar & posy;
+       generatevals();
+    }
+
+    OpVector(){}
+    OpVector(int startx, int starty, int posx, int posy): startx(startx), starty(starty), posx(posx), posy(posy){
+        generatevals();
+    }
+    boost::basic_format<char> toString() const {
+        return boost::format("[%1%, %2%, %3%, %4% | %5%, %6%, %7% ]") % startx % starty % posx % posy % length % vx % vy;
+    }
+};
+
 std::ostream &operator<<(std::ostream &os, substr const &m) {
+    return os << m.toString();
+}
+std::ostream &operator<<(std::ostream &os, OpVector const &m) {
     return os << m.toString();
 }
 
@@ -125,11 +164,11 @@ int main(int argc, char **argv){
 
     std::vector<substr> result;
 
-    MPI::Init(argc,argv);
+//    MPI::Init(argc,argv);
     int size,rank;
 
-    size=MPI::COMM_WORLD.Get_size();
-    rank=MPI::COMM_WORLD.Get_rank();
+//    size=MPI::COMM_WORLD.Get_size();
+//    rank=MPI::COMM_WORLD.Get_rank();
 //    MPI::Comm comm = MPI::COMM_WORLD;
 
 
@@ -146,6 +185,12 @@ int main(int argc, char **argv){
             }
         }
     }
+
+    mpi::environment env;
+    mpi::communicator world;
+    std::cout << "I am process " << world.rank() << " of " << world.size()
+              << "." << std::endl;
+
     std::string serial_str;
     boost::iostreams::back_insert_device<std::string> inserter(serial_str);
     boost::iostreams::stream<boost::iostreams::back_insert_device<std::string> > s(inserter);
@@ -156,8 +201,8 @@ int main(int argc, char **argv){
     // don't forget to flush the stream to finish writing into the buffer
     s.flush();
 
-    std::cout << serial_str
-                 ;
+//    std::cout << serial_str
+//                 ;
     std::cout << "\n";
 
     return 0;

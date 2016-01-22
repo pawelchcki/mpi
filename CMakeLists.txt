@@ -14,6 +14,6 @@ set(CMAKE_CXX_COMPILE_FLAGS ${CMAKE_CXX_COMPILE_FLAGS} ${MPI_COMPILE_FLAGS})
 set(CMAKE_CXX_LINK_FLAGS ${CMAKE_CXX_LINK_FLAGS} ${MPI_LINK_FLAGS})
 
 set(Boost_USE_STATIC_LIBS  ON)
-find_package(Boost REQUIRED system serialization)
+find_package(Boost REQUIRED system serialization mpi)
 
-target_link_libraries(myown ${MPI_LIBRARIES} crypt m ${Boost_LIBRARIES})
+target_link_libraries(myown ${MPI_LIBRARIES} ${Boost_LIBRARIES})
