@@ -25,27 +25,7 @@
 #define MAT_WIDTH 100
 
 namespace mpi = boost::mpi;
-
-class substr {
-    friend class boost::serialization::access;
-
-    int sx, sy, x,y;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
-    {
-        ar & sx;
-        ar & sy;
-        ar & x;
-        ar & y;
-    }
-public:
-    substr(){}
-    substr(int sx, int sy, int x, int y): sx(sx), sy(sy), x(x), y(y){}
-    boost::basic_format<char> toString() const {
-        return boost::format("[%1%, %2%, %3%, %4% | %5%, %6% ]") % sx % sy % x % y % (x - sx) % (y - sy);
-    }
-};
+namespace ublas = boost::numeric::ublas;
 
 class OpVector{
     friend class boost::serialization::access;
@@ -64,7 +44,7 @@ class OpVector{
        ar & starty;
        ar & posx;
        ar & posy;
-       generatevals();
+
     }
 public:
     int length;
@@ -81,10 +61,6 @@ public:
     }
 };
 
-std::ostream &operator<<(std::ostream &os, substr const &m) {
-    return os << m.toString();
-}
-
 std::ostream &operator<<(std::ostream &os, OpVector const &m) {
     return os << m.toString();
 }
@@ -97,7 +73,7 @@ bool isCorrect(char x){
     }
 }
 
-bool isWithinRange(boost::numeric::ublas::matrix<char> &mat, int x, int y){
+inline bool isWithinRange(boost::numeric::ublas::matrix<char> &mat, int x, int y){
     return x >= 0 && y >= 0 && x < mat.size1() && y < mat.size2();
 }
 
@@ -110,15 +86,14 @@ int yVector(int sx, int sy, int x, int y){
         return -1;
     }
 }
-void processResult(std::vector<substr> &result, int sx, int sy, int x, int y){
-    int length = x - sx;
-    if (length >= 2){
-        result.push_back(substr(sx, sy, x, y));
+void processResult(std::vector<OpVector> &result, int sx, int sy, int x, int y){
+    OpVector data(sx,sy,x,y);
+    if (data.length >= 2){
+        result.push_back(data);
     }
 }
 
-bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<substr> &result, int sx, int sy, int x, int y){
-//    std::cout << boost::format("--| %1% %2% %3% %4% \n") % sx % sy % x % y ;
+bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &result, int sx, int sy, int x, int y){
     bool finished = false;
     if (isWithinRange(mat, x, y)) {
         if (isCorrect(mat(x, y))){
@@ -136,14 +111,6 @@ bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<substr> &resu
     return finished;
 }
 
-void handle(boost::numeric::ublas::matrix<char> &mat, std::vector<substr> &result, int x, int y){
-    if (isWithinRange(mat, x, y) && isCorrect(mat(x,y))){
-        recurse(mat, result, x, y, x+1, y-1);
-        recurse(mat, result, x, y, x+1, y);
-        recurse(mat, result, x, y, x+1, y+1);
-    }
-}
-
 class PositionHelper {
     int cellWidth = 2;
     int cellHeight = 2;
@@ -152,6 +119,21 @@ class PositionHelper {
 public:
     PositionHelper(int cellWidth, int cellHeight, int width) : cellWidth(cellWidth), cellHeight(cellHeight), width(width) {
         cellsInWidth = cellsInWidthCalc();
+    }
+
+    void processCell(ublas::matrix<char> &mat, std::vector<OpVector> &result, int cellNo) {
+        int x = firstXInCell(cellNo);
+        int y = firstYInCell(cellNo);
+
+        for(int i=x; i <= (x + cellWidth); i++){
+            for(int j=y; j <= (y + cellHeight); j++){
+                if (isCorrect(mat(x,y))){
+                    recurse(mat, result, x, y, x+1, y-1);
+                    recurse(mat, result, x, y, x+1, y);
+                    recurse(mat, result, x, y, x+1, y+1);
+                }
+            }
+        }
     }
 
     inline int cellsInWidthCalc(){
@@ -173,18 +155,34 @@ public:
     int cellRank(int x, int y, int maxRank){
         return cellNumber(x, y) % maxRank;
     }
+
+    int firstXInCell(int cellNo){
+        return (cellNo % cellsInWidth) * cellWidth;
+    }
+
+    inline int firstYInCell(int cellNo){
+        return (cellNo / cellsInWidth) * cellHeight;
+    }
 };
 
 int test() {
-    PositionHelper helper3(2, 2, 3);
+    PositionHelper h3(2, 2, 3);
 
-    assert(helper3.cellNumber(0, 0) == 0);
-    assert(helper3.cellNumber(1, 0) == 0);
-    assert(helper3.cellNumber(2, 0) == 1);
-    assert(helper3.cellNumber(0, 1) == 0);
-    assert(helper3.cellNumber(0, 2) == 2);
-    assert(helper3.cellNumber(2, 2) == 3);
+    assert(h3.cellNumber(0, 0) == 0);
+    assert(h3.cellNumber(1, 0) == 0);
+    assert(h3.cellNumber(2, 0) == 1);
+    assert(h3.cellNumber(0, 1) == 0);
+    assert(h3.cellNumber(0, 2) == 2);
+    assert(h3.cellNumber(2, 2) == 3);
+    assert(h3.firstXInCell(0) == 0);
+    assert(h3.firstXInCell(1) == 2);
+    assert(h3.firstXInCell(3) == 2);
+    assert(h3.firstXInCell(2) == 0);
 
+    assert(h3.firstYInCell(2) == 2);
+    assert(h3.firstYInCell(0) == 0);
+    assert(h3.firstYInCell(1) == 0);
+    assert(h3.firstYInCell(3) == 2);
 }
 
 int main(int argc, char **argv){
@@ -197,7 +195,7 @@ int main(int argc, char **argv){
 
     e2.seed(10);
 
-    std::vector<substr> result;
+    std::vector<OpVector> result;
 
     mpi::environment env;
     mpi::communicator world;
@@ -215,7 +213,7 @@ int main(int argc, char **argv){
     if (rank == 0){
         for(auto i = 0; i < mat.size1(); i++){
             for(auto j = 0; j < mat.size2(); j++){
-                handle(mat, result, i, j);
+//                handle(mat, result, i, j);
             }
         }
     }
