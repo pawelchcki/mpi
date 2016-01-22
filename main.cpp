@@ -56,6 +56,24 @@ public:
     OpVector(int startx, int starty, int posx, int posy): startx(startx), starty(starty), posx(posx), posy(posy){
         generatevals();
     }
+
+    bool canAdvance(ublas::matrix<char> &mat){
+        return mat.size1() > nextX() && mat.size2() > nextY();
+    }
+
+    inline int nextX(){
+        return posx + vx;
+    }
+
+    inline int nextY(){
+        return posy + vy;
+    }
+
+    void advance() {
+        posx += vx;
+        posy += vy;
+    }
+
     boost::basic_format<char> toString() const {
         return boost::format("[%1%, %2%, %3%, %4% | %5%, %6%, %7% ]") % startx % starty % posx % posy % length % vx % vy;
     }
@@ -73,51 +91,37 @@ bool isCorrect(char x){
     }
 }
 
-inline bool isWithinRange(boost::numeric::ublas::matrix<char> &mat, int x, int y){
-    return x >= 0 && y >= 0 && x < mat.size1() && y < mat.size2();
-}
 
-int yVector(int sx, int sy, int x, int y){
-    if ((y - sy) == 0){
-        return 0;
-    } else if (y - sy > 0) {
-        return 1;
-    } else {
-        return -1;
-    }
-}
-void processResult(std::vector<OpVector> &result, int sx, int sy, int x, int y){
-    OpVector data(sx,sy,x,y);
+inline void processResult(std::vector<OpVector> &result, OpVector &data){
+
     if (data.length >= 2){
         result.push_back(data);
     }
 }
 
-bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &result, int sx, int sy, int x, int y){
-    bool finished = false;
-    if (isWithinRange(mat, x, y)) {
-        if (isCorrect(mat(x, y))){
-            int next_x = x+1, next_y = y + yVector(sx, sy, x, y);
-            if (recurse(mat, result, sx, sy, next_x, next_y)){
-                processResult(result, sx, sy, x, y);
-            }
+bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &result, OpVector &data){
+    while (data.canAdvance(mat)) {
+        if (isCorrect(mat(data.nextX(), data.nextY()))){
+            data.advance();
         } else {
-            finished = true;
 
         }
-    } else {
-        finished = true;
     }
-    return finished;
+    if (data.length >= 2){
+        result.push_back(data);
+    }
+
+    return true;
 }
 
 class PositionHelper {
     int cellWidth = 2;
     int cellHeight = 2;
-    int width;
     int cellsInWidth;
+    ublas::matrix<char> &mat;
+
 public:
-    PositionHelper(int cellWidth, int cellHeight, int width) : cellWidth(cellWidth), cellHeight(cellHeight), width(width) {
+    PositionHelper(int cellWidth, int cellHeight, ublas::matrix<char> &mat) : cellWidth(cellWidth), cellHeight(cellHeight), mat(mat) {
         cellsInWidth = cellsInWidthCalc();
     }
 
@@ -128,20 +132,34 @@ public:
         for(int i=x; i <= (x + cellWidth); i++){
             for(int j=y; j <= (y + cellHeight); j++){
                 if (isCorrect(mat(x,y))){
-                    recurse(mat, result, x, y, x+1, y-1);
-                    recurse(mat, result, x, y, x+1, y);
-                    recurse(mat, result, x, y, x+1, y+1);
+                    OpVector opv1(x,y, x+1, y);
+                    OpVector opv2(x,y, x+1, y+1);
+                    OpVector opv3(x,y, x, y+1);
+                    OpVector opv4(x,y, x-1, y+1);
+                    recurse(mat, result, opv1);
+                    recurse(mat, result, opv2);
+                    recurse(mat, result, opv3);
+                    recurse(mat, result, opv4);
                 }
             }
         }
     }
 
     inline int cellsInWidthCalc(){
-        int result = width / cellWidth;
-        if (width % cellWidth > 0){
+        int result = mat.size1() / cellWidth;
+        if (mat.size1() % cellWidth > 0){
             result += 1;
         }
         return result;
+    }
+
+    int numCells(){
+        int wCells = cellsInWidthCalc();
+        int hCells = mat.size2() / cellHeight;
+        if (mat.size2() % cellHeight > 0){
+            hCells +=1;
+        }
+        return wCells * hCells;
     }
 
     int cellNumber(int x, int y){
@@ -166,7 +184,8 @@ public:
 };
 
 int test() {
-    PositionHelper h3(2, 2, 3);
+    ublas::matrix<char> mat(3,2);
+    PositionHelper h3(2, 2, mat);
 
     assert(h3.cellNumber(0, 0) == 0);
     assert(h3.cellNumber(1, 0) == 0);
