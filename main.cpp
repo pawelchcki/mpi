@@ -1,4 +1,4 @@
-#include <boost/mpi/environment.hpp>
+#include <boost/mpi/environment.hpp>``
 #include <boost/mpi/communicator.hpp>
 
 #include <boost/numeric/ublas/matrix.hpp>
@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <random>
+#include <algorithm>
 #include <vector>
 
 #include <fstream>
@@ -21,7 +22,7 @@
 #include <boost/iostreams/stream.hpp>
 #include <cassert>
 
-#define MAT_LENGTH 5
+#define MAT_HEIGHT 5
 #define MAT_WIDTH 5
 
 namespace mpi = boost::mpi;
@@ -31,10 +32,9 @@ class OpVector{
     friend class boost::serialization::access;
 
     inline void generatevals(){
-        length = abs(posx - startx);
-        if (length == 0) length = abs(posy -starty);
+        length = std::max(abs(posx - startx), abs(posy-starty));
         vx = (posx-startx)/length;
-        vy = (posy-startx)/length;
+        vy = (posy-starty)/length;
         assert(vx == 0 || vx == 1 || vx == -1);
         assert(vy == 0 || vy == 1 || vy == -1);
     }
@@ -45,11 +45,11 @@ class OpVector{
        ar & starty;
        ar & posx;
        ar & posy;
-
+       generatevals();
     }
 public:
     int length;
-    char vx,vy; // vector to move
+    int vx,vy; // vector to move
     int startx, starty;
     int posx, posy;
 
@@ -101,8 +101,13 @@ inline void processResult(std::vector<OpVector> &result, OpVector &data){
 }
 
 bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &result, OpVector &data){
-    while (data.canAdvance(mat) && isCorrect(mat(data.nextX(), data.nextY()))) {
-        data.advance();
+    while (data.canAdvance(mat)) {
+        if (isCorrect(mat(data.nextX(), data.nextY()))){
+           data.advance();
+        } else {
+           std::cout << data << "\n";
+           break;
+        }
     }
     if (data.length >= 2){
         result.push_back(data);
@@ -126,14 +131,13 @@ public:
         int x = firstXInCell(cellNo);
         int y = firstYInCell(cellNo);
 
-        for(int i=x; i <= (x + cellWidth); i++){
-            for(int j=y; j <= (y + cellHeight); j++){
-                if (isCorrect(mat(x,y))){
-                    std::cout <<  i << " " << j << "\n";
-                    OpVector opv1(x,y, x+1, y);
-                    OpVector opv2(x,y, x+1, y+1);
-                    OpVector opv3(x,y, x, y+1);
-                    OpVector opv4(x,y, x-1, y+1);
+        for(int i=x; i < std::min(x + cellWidth, (int)mat.size1()) ; i++){
+            for(int j=y; j < std::min(y + cellHeight, (int)mat.size2()); j++){
+                if (isCorrect(mat(i,j))){
+                    OpVector opv1(i, j, i+1, j);
+                    OpVector opv2(i, j, i+1, j+1);
+                    OpVector opv3(i, j, i,   j+1);
+                    OpVector opv4(i, j, i-1, j+1);
                     recurse(mat, result, opv1);
                     recurse(mat, result, opv2);
                     recurse(mat, result, opv3);
@@ -208,7 +212,7 @@ int main(int argc, char **argv){
     std::mt19937 e2(rd());
 
     std::uniform_int_distribution<char> dist(48,49);
-    boost::numeric::ublas::matrix<char> mat(MAT_LENGTH, MAT_WIDTH);
+    boost::numeric::ublas::matrix<char> mat(MAT_WIDTH, MAT_HEIGHT);
 
     e2.seed(10);
 
