@@ -22,7 +22,7 @@
 #include <boost/iostreams/stream.hpp>
 #include <cassert>
 
-#define MAT_HEIGHT 1000
+#define MAT_HEIGHT 10000
 #define MAT_WIDTH 10000
 
 namespace mpi = boost::mpi;
@@ -224,7 +224,7 @@ int main(int argc, char **argv){
     std::random_device rd;
     std::mt19937 e2(rd());
 
-    std::uniform_int_distribution<char> dist(48,49);
+    std::uniform_int_distribution<char> dist(32,125);
     boost::numeric::ublas::matrix<char> mat(MAT_WIDTH, MAT_HEIGHT);
 
     e2.seed(10);
