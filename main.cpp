@@ -15,8 +15,6 @@
 #include <fstream>
 
 #include <boost/archive/binary_oarchive.hpp>
-//#include <boost/archive/text_oarchive.hpp>
-//#include <boost/archive/text_iarchive.hpp>
 
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/stream.hpp>
@@ -29,7 +27,8 @@ namespace mpi = boost::mpi;
 namespace ublas = boost::numeric::ublas;
 
 bool isCorrect(char x){
-    if (x == '1'){
+    if (x == 'a' || x == 'u' || x == 'i' || x == 'e' || x == 'o' ||
+        x == 'A' || x == 'U' || x == 'I' || x == 'E' || x == 'O'){
         return true;
     } else {
         return false;
@@ -105,13 +104,6 @@ std::ostream &operator<<(std::ostream &os, OpVector const &m) {
     return os << m.toString();
 }
 
-inline void processResult(std::vector<OpVector> &result, OpVector &data){
-
-    if (data.length >= 2){
-        result.push_back(data);
-    }
-}
-
 bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &result, OpVector &data){
     if (data.isCurrentCorrect(mat)){
         return false;
@@ -120,8 +112,17 @@ bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &re
         data.advance();
     }
 
-    if (data.length >= 2){
+    if (data.length >= 5){
         result.push_back(data);
+        // clean accepted to reduce duplicates
+        int x = data.startx;
+        int y = data.starty;
+        for (int i=0; i <= data.length; i++){
+            mat(x,y) = -1;
+            x += data.vx;
+            y += data.vy;
+        }
+
     }
 
     return true;
@@ -225,7 +226,6 @@ int main(int argc, char **argv){
     std::mt19937 e2(rd());
 
     std::uniform_int_distribution<char> dist(32,125);
-    boost::numeric::ublas::matrix<char> mat(MAT_WIDTH, MAT_HEIGHT);
 
     e2.seed(10);
 
@@ -236,13 +236,9 @@ int main(int argc, char **argv){
     std::cout << "I am process " << world.rank() << " of " << world.size()
               << "." << std::endl;
 
-    for(auto i = 0; i < mat.size1(); i++){
-        for(auto j = 0; j < mat.size2(); j++){
-            mat(i,j) = dist(e2);
-        }
-    }
+    boost::numeric::ublas::matrix<char> mat(MAT_WIDTH, MAT_HEIGHT);
 
-    PositionHelper ph(1000, 1000, mat);
+    PositionHelper ph(10000, 1000, mat);
     int ws = world.size();
     int numCells = ph.numCells();
     assert(ws > 1);
@@ -256,14 +252,23 @@ int main(int argc, char **argv){
 
         for (int i = 1; i < ws; i++){
             world.send(i, 1, -1);
-
-            std::vector<OpVector> results_tmp;
-            world.recv(i, 2, results_tmp);
-            results.reserve(results.size() + results_tmp.size());
-            results.insert(results.end(), results_tmp.begin(), results_tmp.end());
         }
+
+//        for (int i =1 ; i< ws; i++){
+//            std::vector<OpVector> results_tmp;
+//            world.recv(i, 2, results_tmp);
+//            results.reserve(results.size() + results_tmp.size());
+//            results.insert(results.end(), results_tmp.begin(), results_tmp.end());
+//        }
         std::cout << "num results: " << results.size() << "\n";
     } else {
+
+        for(auto i = 0; i < mat.size1(); i++){
+            for(auto j = 0; j < mat.size2(); j++){
+                mat(i,j) = dist(e2);
+            }
+        }
+
         std::vector<OpVector> results;
         while (true){
             int msg;
@@ -274,30 +279,9 @@ int main(int argc, char **argv){
             ph.processCell(mat, results, msg);
         }
         std::cout << "Sending n: " << results.size() << "\n";
-        world.send(0, 2, results);
+//        world.send(0, 2, results);
 
-//        for(int i=0; i< results.size(); i++){
-//            std::cout << results[i] << std::endl;
-//        }
     }
-
-//    for(int i=0; i< results.size(); i++){
-//        std::cout << results[i] << std::endl;
-//    }
-
-
-//    std::string serial_str;
-//    boost::iostreams::back_insert_device<std::string> inserter(serial_str);
-//    boost::iostreams::stream<boost::iostreams::back_insert_device<std::string> > s(inserter);
-//    boost::archive::binary_oarchive oa(s);
-
-//    oa << result;
-
-//    // don't forget to flush the stream to finish writing into the buffer
-//    s.flush();
-
-////    std::cout << serial_str
-//                 ;
     std::cout << "\n";
 
     return 0;
