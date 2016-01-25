@@ -104,7 +104,7 @@ std::ostream &operator<<(std::ostream &os, OpVector const &m) {
     return os << m.toString();
 }
 
-bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &result, OpVector &data){
+bool calculate(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &result, OpVector &data){
     if (data.isCurrentCorrect(mat)){
         return false;
     }
@@ -112,7 +112,7 @@ bool recurse(boost::numeric::ublas::matrix<char> &mat, std::vector<OpVector> &re
         data.advance();
     }
 
-    if (data.length >= 5){
+    if (data.length >= 2){
         result.push_back(data);
         // clean accepted to reduce duplicates
         int x = data.startx;
@@ -152,10 +152,10 @@ public:
                     OpVector opv3(i, j, i,   j+1);
                     OpVector opv4(i, j, i-1, j+1);
 
-                    recurse(mat, result, opv1);
-                    recurse(mat, result, opv2);
-                    recurse(mat, result, opv3);
-                    recurse(mat, result, opv4);
+                    calculate(mat, result, opv1);
+                    calculate(mat, result, opv2);
+                    calculate(mat, result, opv3);
+                    calculate(mat, result, opv4);
                 }
             }
         }
@@ -238,7 +238,7 @@ int main(int argc, char **argv){
 
     boost::numeric::ublas::matrix<char> mat(MAT_WIDTH, MAT_HEIGHT);
 
-    PositionHelper ph(10000, 1000, mat);
+    PositionHelper ph(MAT_WIDTH, MAT_HEIGHT/(world.size()-1), mat);
     int ws = world.size();
     int numCells = ph.numCells();
     assert(ws > 1);
@@ -254,12 +254,12 @@ int main(int argc, char **argv){
             world.send(i, 1, -1);
         }
 
-//        for (int i =1 ; i< ws; i++){
-//            std::vector<OpVector> results_tmp;
-//            world.recv(i, 2, results_tmp);
-//            results.reserve(results.size() + results_tmp.size());
-//            results.insert(results.end(), results_tmp.begin(), results_tmp.end());
-//        }
+        for (int i =1 ; i< ws; i++){
+            std::vector<OpVector> results_tmp;
+            world.recv(i, 2, results_tmp);
+            results.reserve(results.size() + results_tmp.size());
+            results.insert(results.end(), results_tmp.begin(), results_tmp.end());
+        }
         std::cout << "num results: " << results.size() << "\n";
     } else {
 
@@ -279,7 +279,7 @@ int main(int argc, char **argv){
             ph.processCell(mat, results, msg);
         }
         std::cout << "Sending n: " << results.size() << "\n";
-//        world.send(0, 2, results);
+        world.send(0, 2, results);
 
     }
     std::cout << "\n";
