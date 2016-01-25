@@ -48,7 +48,7 @@ int main(int argc, char **argv){
 
             std::cout << "received vector: " << std::endl;
             for (auto const & value: tmp){
-                std::cout << value << value;
+                std::cout << value << std::endl;
             }
         }
 
